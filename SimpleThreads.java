@@ -6,8 +6,7 @@ public class SimpleThreads {
         System.out.format("%s: %s%n", threadName, message);
     }
 
-    private static class MessageLoop
-        implements Runnable {
+    private static class MessageLoop implements Runnable {
         public void run() {
             String importantInfo[] = {
                 "Mares eat oats",
@@ -15,11 +14,10 @@ public class SimpleThreads {
                 "Little lambs eat ivy",
                 "A kid will eat ivy too"
             };
+
             try {
                 for (int i = 0; i < importantInfo.length; i++) {
-                    // Pause for 4 seconds
                     Thread.sleep(4000);
-                    // Print a message
                     threadMessage(importantInfo[i]);
                 }
             } catch (InterruptedException e) {
@@ -28,10 +26,52 @@ public class SimpleThreads {
         }
     }
 
-    public static void main(String args[])
-        throws InterruptedException {
+    private static class CpuIntensive implements Runnable {
+        public void run() {
+            threadMessage("CPU-intensive task started");
 
-        // Delay, in milliseconds before we interrupt MessageLoop thread (default one hour)
+            long number = 2;
+            long primesFound = 0;
+
+            while (true) {
+
+                // Verifica se esta thread foi interrompida
+                if (Thread.currentThread().isInterrupted()) {
+                    threadMessage("CPU-intensive task was interrupted. Finishing...");
+                    return;
+                }
+
+                if (isPrime(number)) {
+                    primesFound++;
+                }
+
+                number++;
+
+                // Só para mostrar que a thread continua trabalhando
+                if (number % 1_000_000 == 0) {
+                    threadMessage("Primes found so far: " + primesFound);
+                }
+            }
+        }
+
+        private boolean isPrime(long n) {
+            if (n < 2) {
+                return false;
+            }
+
+            for (long i = 2; i * i <= n; i++) {
+                if (n % i == 0) {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+    }
+
+    public static void main(String args[]) throws InterruptedException {
+
+        // Delay, in milliseconds before we interrupt the threads
         long patience = 1000 * 60 * 60;
 
         // If command line argument present, gives patience in seconds
@@ -45,27 +85,43 @@ public class SimpleThreads {
         }
 
         threadMessage("Starting MessageLoop thread");
+        Thread messageThread = new Thread(new MessageLoop(), "MessageLoop");
+
+        threadMessage("Starting CPU-intensive thread");
+        Thread cpuThread = new Thread(new CpuIntensive(), "CpuIntensive");
+
         long startTime = System.currentTimeMillis();
-        Thread t = new Thread(new MessageLoop());
 
-	// Put the MessageLoop thread to run
-        t.start();
+        messageThread.start();
+        cpuThread.start();
 
-        threadMessage("Waiting for MessageLoop thread to finish");
-	
-        // loop until MessageLoop thread exits
-        while (t.isAlive()) {
+        threadMessage("Waiting for threads to finish");
+
+        while (messageThread.isAlive() || cpuThread.isAlive()) {
             threadMessage("Still waiting...");
-            // Wait maximum of 1 second for MessageLoop thread to finish
-            t.join(1000);
-            if (((System.currentTimeMillis() - startTime) > patience) && t.isAlive()) {
+
+            // Espera um pouco por cada thread
+            messageThread.join(500);
+            cpuThread.join(500);
+
+            if ((System.currentTimeMillis() - startTime) > patience) {
                 threadMessage("Tired of waiting!");
-		// Force the interruption of the MainLoop thread
-                t.interrupt();
-                // ...and wait for it to finish -- shouldn't be long now 
-                t.join();
+
+                if (messageThread.isAlive()) {
+                    threadMessage("Interrupting MessageLoop thread");
+                    messageThread.interrupt();
+                }
+
+                if (cpuThread.isAlive()) {
+                    threadMessage("Interrupting CPU-intensive thread");
+                    cpuThread.interrupt();
+                }
+
+                messageThread.join();
+                cpuThread.join();
             }
         }
+
         threadMessage("Finally!");
     }
 }
